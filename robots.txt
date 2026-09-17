@@ -1,0 +1,32 @@
+User-agent: *
+Disallow: /
+
+# 防 AI 爬虫（防护 B 配套；robots 只挡守规矩的爬虫，主防靠密码遮罩）
+User-agent: GPTBot
+Disallow: /
+User-agent: ChatGPT-User
+Disallow: /
+User-agent: OAI-SearchBot
+Disallow: /
+User-agent: ClaudeBot
+Disallow: /
+User-agent: Claude-Web
+Disallow: /
+User-agent: CCBot
+Disallow: /
+User-agent: PerplexityBot
+Disallow: /
+User-agent: Google-Extended
+Disallow: /
+User-agent: Bytespider
+Disallow: /
+User-agent: Diffbot
+Disallow: /
+User-agent: cohere-ai
+Disallow: /
+User-agent: meta-externalagent
+Disallow: /
+User-agent: Applebot-Extended
+Disallow: /
+User-agent: Amazonbot
+Disallow: /

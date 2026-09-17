@@ -1,0 +1,136 @@
+/* ============================================================
+   tokens.css · 学习站设计令牌（深青刊物风）
+   全站唯一颜色/字号/间距来源；组件只引用变量，不写死色值。
+   亮色为默认；暗色通过 html.dark 切换。
+   2026-09-14 色彩层改版：拉开纸/卡色差、软青块加深、
+   引入渐变令牌与青色品牌阴影（对齐旧站 tinci-kb-web 搭配）。
+   ============================================================ */
+
+:root {
+  /* ---------- 色彩：纸面与墨色（亮色） ---------- */
+  --paper: #edf4f1;          /* 页面底：淡青纸（与白卡有清晰色差） */
+  --surface: #ffffff;        /* 卡片/抬升面：纯白 */
+  --surface-2: #d9e7e1;      /* 内凹面：比纸面再深半档（水相/公式/轨道槽） */
+  --ink: #152723;            /* 正文墨黑（带青调） */
+  --ink-2: #4d645d;          /* 次级文字 */
+  --ink-3: #4f6b64;          /* 图注、弱说明（对纸面/白卡/浅青底均 ≥4.5） */
+  --line: #d9e5e0;           /* 细分隔线 */
+  --line-strong: #c2d4cd;    /* 表头/收尾粗线 */
+
+  /* ---------- 卡片边/悬浮边（青调细边） ---------- */
+  --card-border: #d3e2db;
+  --card-border-hover: rgba(11, 118, 102, .45);
+
+  /* ---------- 旁注框辅助色 ---------- */
+  --tip-line: rgba(11, 118, 102, .26);    /* 销售提示：1px 软青框（另有 4px 左条） */
+  --amber-line: rgba(151, 104, 29, .28);  /* 易混点：1px 软琥珀框 */
+  --table-head-bg: #e4f0eb;               /* 表头一丝青底 */
+
+  /* ---------- 色彩：深青主色体系（亮色） ---------- */
+  --teal: #0b7666;           /* 主色 */
+  --teal-bright: #14b8a6;    /* 亮青：强调端点 */
+  --teal-deep: #0a5f52;      /* 深青：实底悬浮 */
+  --teal-soft: #dcf0e9;      /* 浅青底：纸面加深后同步压半档，保证色块一眼可辨 */
+  --on-teal: #ffffff;        /* 青底上的文字 */
+  --on-grad: #ffffff;        /* 渐变深底（按钮/一句话记住）上的文字，亮暗均为白 */
+
+  /* ---------- 色彩：低饱和琥珀（唯一辅色，亮色） ---------- */
+  --amber: #97681d;          /* 辅色：易混点描边/图标 */
+  --amber-deep: #7d5515;     /* 深琥珀 */
+  --amber-soft: #f6ecd6;     /* 浅琥珀底（加深半档，低饱和不刺眼） */
+  --on-amber: #ffffff;       /* 琥珀实底上的文字 */
+
+  /* ---------- 渐变（只点在主按钮/小元素，正文大区块仍平涂） ---------- */
+  /* 端点压深至 #0c8072：白字对端点 ≥4.8（原 #14b8a6 端仅 2.5，不达 WCAG） */
+  --grad-teal: linear-gradient(135deg, #0b7666, #0c8072);
+  /* 深青三段：供深底块（一句话记住），末端压深保证白字对比度 */
+  --grad-deep: linear-gradient(135deg, #0a4a42 0%, #0b7666 55%, #0c7f70 100%);
+
+  /* ---------- 功能色 ---------- */
+  --mark-bg: #ffe58a;                 /* 正文高亮黄 */
+  --topbar-bg: rgba(237, 244, 241, .82);
+  --topbar-line: rgba(11, 118, 102, .18);
+  --focus-ring: rgba(20, 184, 166, .45);
+
+  /* ---------- 纸面氛围微光（极淡青晕，旧站手法） ---------- */
+  --glow-a: rgba(20, 184, 166, .06);
+  --glow-b: rgba(11, 118, 102, .05);
+
+  /* ---------- 阴影（青色品牌阴影，xs 静息 / sm 悬浮） ---------- */
+  --shadow-xs: 0 1px 2px rgba(11, 118, 102, .06), 0 1px 3px rgba(11, 118, 102, .05);
+  --shadow-sm: 0 4px 12px rgba(11, 118, 102, .09), 0 1px 4px rgba(11, 118, 102, .06);
+  --shadow-card: var(--shadow-xs);     /* 兼容名：卡片静息 */
+  --shadow-float: 0 12px 28px rgba(11, 118, 102, .10), 0 4px 12px rgba(11, 118, 102, .07);
+
+  /* ---------- 字体 ---------- */
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+
+  /* ---------- 字号 ---------- */
+  --fs-hero: 2.1rem;
+  --fs-h2: 1.42rem;
+  --fs-h3: 1.12rem;
+  --fs-body: 1rem;
+  --fs-small: .86rem;
+  --fs-caption: .8rem;
+
+  /* ---------- 间距与尺度 ---------- */
+  --measure: 700px;          /* 正文栏宽 */
+  --page-max: 1080px;        /* 顶栏/页眉最大宽 */
+  --gap-page: 24px;
+  --lh-body: 1.9;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+/* ============================================================
+   暗色：深墨绿纸（卡片抬一档、内凹面居中半档、阴影转黑）
+   ============================================================ */
+html.dark {
+  --paper: #0b1f1c;
+  --surface: #14302b;        /* 对齐旧站暗色卡 */
+  --surface-2: #102a25;      /* 介于纸面与卡片之间：卡上显凹、纸上显抬 */
+  --ink: #e3f0ec;
+  --ink-2: #9fb8b1;
+  --ink-3: #93b0a9;        /* 暗色弱文字：对纸/卡/内凹面 ≥5.0，对青晕底 ≥4.5（SVG .t-muted 辅文同源） */
+  --line: #23443d;
+  --line-strong: #33564e;
+
+  --card-border: #21433c;
+  --card-border-hover: rgba(45, 212, 191, .42);
+
+  --tip-line: rgba(20, 184, 166, .30);
+  --amber-line: rgba(213, 165, 87, .30);
+  --table-head-bg: rgba(20, 184, 166, .08);
+
+  --teal: #14b8a6;
+  --teal-bright: #2dd4bf;
+  --teal-deep: #0b7666;
+  --teal-soft: rgba(20, 184, 166, .10);  /* 压淡半档：晕底上弱文字/亮青字均 ≥4.5 */
+  --on-teal: #04201d;
+  --on-grad: #ffffff;        /* 暗色渐变按钮压深，仍配白字 */
+
+  --amber: #d5a557;
+  --amber-deep: #e2b873;
+  --amber-soft: rgba(213, 165, 87, .14);
+  --on-amber: #2a1c08;
+
+  /* 暗色渐变压深，保证白字对比度（端点对纯白 ≥5.5） */
+  --grad-teal: linear-gradient(135deg, #0a5f52, #0b7666);
+  --grad-deep: linear-gradient(135deg, #0a4a42 0%, #0a5f52 50%, #0b7666 100%);
+
+  --mark-bg: rgba(232, 196, 92, .34);
+  --topbar-bg: rgba(11, 31, 28, .82);
+  --topbar-line: rgba(20, 184, 166, .20);
+  --focus-ring: rgba(45, 212, 191, .5);
+
+  --glow-a: rgba(20, 184, 166, .07);
+  --glow-b: rgba(11, 118, 102, .10);
+
+  /* 暗底青阴影不可见，统一转黑色投影 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .28);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, .36), 0 1px 4px rgba(0, 0, 0, .26);
+  --shadow-card: var(--shadow-xs);
+  --shadow-float: 0 10px 28px rgba(0, 0, 0, .50);
+}
