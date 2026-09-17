@@ -29,7 +29,7 @@
   var SALT_B64 = 'i8EsIr1IrftvAToVS1ngRA==';
   var ITER = 600000;
   // 登录验证器（部署时替换）：encrypt('TINCI_OK', key) 的密文
-  var VERIFIER_B64 = 'jlABq8HF9feyeb/AbEe9Mzr0J8PSNFVTauOZ7NgIUJ8Cfpnb';
+  var VERIFIER_B64 = 'b9SbuYzvwQrByrPebquDxh+LstIH2wU4nHm1aas32pgdtqn1';
   // 会话恢复：sessionStorage 键与旧站一致（不同源站点互不影响）
   var SES_KEY = 'tinci_auth_key';
 

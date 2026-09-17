@@ -13,14 +13,77 @@
 
   /* ---------- 0 通用 ---------- */
 
-  // 相对路径：如 catalog/surfactants/basics.html，作为各存储键的后缀
-  var PATH = window.location.pathname.replace(/^\/+/, '') + window.location.search;
+  // 站根绝对 URL：从本脚本 src 反推（learn.js 固定挂在 <站根>/assets/js/ 下）。
+  // 线上项目站 https://shenlang1111.github.io/learn/assets/js/learn.js → 根 …/learn/
+  // 本地根预览 http://127.0.0.1:PORT/assets/js/learn.js → 根 …/
+  var SCRIPT_SRC = (function () {
+    var s = document.currentScript || document.querySelector('script[src*="learn.js"]');
+    return (s && s.src) ? s.src : '';
+  })();
+  // 后缀 query/hash 是【可选】的：旧正则写成 learn\.js[?#].*$，无 query 的脚本 URL
+  // （生产环境常态）完全不匹配 → replace 原样返回，SITE_ROOT 错成 …/assets/js/learn.js，
+  // 搜索请求变成 learn.jssearch-index.json 404，SITE_ROOT_PATH 也跟着错、剥不掉 /learn/ 前缀。
+  var SITE_ROOT = SCRIPT_SRC.replace(/assets\/js\/learn\.js(?:[?#].*)?$/, '');
+  var SITE_ROOT_PATH = (function () {
+    try { return new URL(SITE_ROOT).pathname; } catch (e) { return '/'; }
+  })();
+
+  // 页面相对站根路径（不带前导斜杠），如 catalog/surfactants/basics.html，作为各存储键后缀。
+  // 必须剥掉站根 pathname：旧版直接取 location.pathname，线上误把 learn/ 前缀存进
+  // localStorage，首页"继续学习"再按相对路径拼接 → /learn/learn/… 双前缀 404，
+  // 且首页进度统计键（catalog/…）与章节页勾选键（learn/catalog/…）对不上。
+  // 不拼 query/hash：站内跳转只用相对路径与 #锚点，若把 ?v=1 拼进键后缀，会与首页
+  // SECTIONS 裸路径口径不一致，导致进度少计（审查 P2-2）。
+  function currentRelPath() {
+    var p = window.location.pathname;
+    if (SITE_ROOT_PATH && SITE_ROOT_PATH !== '/' && p.indexOf(SITE_ROOT_PATH) === 0) {
+      p = p.slice(SITE_ROOT_PATH.length);
+    }
+    return p.replace(/^\/+/, '');
+  }
+  var PATH = currentRelPath();
+
+  // 修复前线上存储键误带的子站前缀；迁移与读取双保险共用同一常量（不要散落魔法数）
+  var LEGACY_PREFIX = 'learn/';
 
   function storageGet(key) {
     try { return window.localStorage.getItem(key); } catch (e) { return null; }
   }
   function storageSet(key, value) {
     try { window.localStorage.setItem(key, value); return true; } catch (e) { return false; }
+  }
+
+  // 一次性迁移：修复前线上键里误带的 learn/ 子站前缀（done/note/hl + learn:last）
+  function migrateLegacyPaths() {
+    try {
+      var prefixes = ['learn:done:', 'learn:note:', 'learn:hl:'];
+      var olds = [];
+      for (var i = 0; i < window.localStorage.length; i++) {
+        var k = window.localStorage.key(i);
+        if (!k) continue;
+        for (var j = 0; j < prefixes.length; j++) {
+          if (k.indexOf(prefixes[j] + LEGACY_PREFIX) === 0) { olds.push({ key: k, prefix: prefixes[j] }); break; }
+        }
+      }
+      olds.forEach(function (item) {
+        // 精确锚定「存储前缀 + 站根前缀」整段剥离，不用裸 replace('learn/','')：
+        // 路径自身若含 learn/ 子串，裸替换首个匹配会剥错位置（审查 P2-1）。
+        var oldKey = item.key;
+        var newKey = oldKey.replace(item.prefix + LEGACY_PREFIX, item.prefix);
+        if (window.localStorage.getItem(newKey) === null) {
+          window.localStorage.setItem(newKey, window.localStorage.getItem(oldKey));
+        }
+        window.localStorage.removeItem(oldKey);
+      });
+      var raw = window.localStorage.getItem('learn:last');
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && typeof o.path === 'string' && o.path.indexOf(LEGACY_PREFIX) === 0) {
+          o.path = o.path.slice(LEGACY_PREFIX.length);
+          window.localStorage.setItem('learn:last', JSON.stringify(o));
+        }
+      }
+    } catch (e) {}
   }
 
   /* 对外只读汇总接口：首页 / 扉页按站点根相对路径读取学习状态。
@@ -33,10 +96,20 @@
       if (!raw) return null;
       try {
         var o = JSON.parse(raw);
-        return (o && o.path) ? o : null;
+        if (o && o.path) {
+          if (o.path.indexOf(LEGACY_PREFIX) === 0) o.path = o.path.slice(LEGACY_PREFIX.length); // 双保险：旧值清洗
+          return o;
+        }
+        return null;
       } catch (e) { return null; }
     }
   };
+
+  // 迁移必须在任何读取学习状态的代码之前完成：learn.js 由 learn-core.js 动态注入，
+  // 其 __secureReady.then 可能晚于首页内联脚本的 then(boot) 注册，放进 startAll 会与
+  // 首页 render 产生竞态（render 先跑读到旧键 → 进度环 0/N）。IIFE 顶层同步迁移后，
+  // window.LearnSite 一旦存在即代表迁移完成，首页 boot 等 LearnSite 即可天然保序。
+  migrateLegacyPaths();
 
   // 部署版正文加密时，由 learn-core.js 提供 __secureReady（解密完成后 resolve）；
   // 本地明文站没有该变量，走原 DOMContentLoaded 路径，行为不变。
@@ -46,6 +119,7 @@
     initNote();
     initHighlight();
     initVisit();
+    initSearch();
   }
   if (window.__secureReady && typeof window.__secureReady.then === 'function') {
     window.__secureReady.then(function () {
@@ -414,5 +488,317 @@
     }
 
     applyAll();
+  }
+
+  /* ============================================================
+     5 站内搜索（加密部署站登录后可用）
+     索引 search-index.json 为 AES-256-GCM 密文（部署时生成，与正文同密钥），
+     登录后 learn-core.js 把密钥写 window.__TINCI_INDEX_KEY，这里拉取解密检索。
+     本地明文站无密钥 → 按钮保持禁用（与旧知识库站行为一致）。
+     ============================================================ */
+  function initSearch() {
+    var btn = document.querySelector('.topbar-actions button[aria-label="搜索"]') ||
+              document.querySelector('button[aria-label="搜索"]');
+    if (!btn) return;
+    var key = window.__TINCI_INDEX_KEY;
+    if (!key) return; // 未登录/本地明文站：不激活
+
+    btn.classList.remove('is-idle');
+    btn.removeAttribute('aria-disabled');
+    btn.title = '搜索（Ctrl+K）';
+
+    var HISTORY_KEY = 'tinci-learn-search-history';
+    var index = null;
+    var indexPromise = null; // 加载去重：加载中连续输入只发一次 fetch
+
+    // 学习向同义词（口语/缩写 → 站内用词）
+    var SYNONYMS = {
+      '表活': ['表面活性剂'],
+      '表面活性剂': ['表活'],
+      '卡波姆': ['聚丙烯酸'],
+      '增稠': ['粘度', '流变', '屈服值'],
+      '悬浮': ['屈服值', '抗沉降', '悬浮剂'],
+      '去屑': ['马拉色菌', '吡硫翁锌', 'zpt'],
+      '防晒': ['紫外线', 'spf'],
+      '硅油': ['聚二甲基硅氧烷', 'pdms'],
+      '乳化剂': ['hlb', '乳化'],
+      '乳化': ['hlb', '乳化剂'],
+      '螯合': ['edta', '金属离子'],
+      '调理': ['阳离子', '聚季铵盐', '柔顺'],
+      '温和': ['低刺激', '氨基酸']
+    };
+
+    var panel = document.createElement('div');
+    panel.className = 'search-panel';
+    panel.innerHTML =
+      '<div class="search-box">' +
+        '<span class="search-box-icon" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16.7 16.7"/></svg>' +
+        '</span>' +
+        '<input type="text" class="search-input" placeholder="搜知识点 / 牌号 / 关键词… 如：CMC、卡波姆、HLB" aria-label="站内搜索">' +
+      '</div>' +
+      '<div class="search-history"></div>' +
+      '<div class="search-results"></div>';
+    document.body.appendChild(panel);
+    var input = panel.querySelector('.search-input');
+    var history = panel.querySelector('.search-history');
+    var results = panel.querySelector('.search-results');
+
+    function ensureIndex(cb) {
+      if (index) { cb(); return; }
+      if (!indexPromise) {
+        indexPromise = fetch(SITE_ROOT + 'search-index.json', { cache: 'no-store' })
+          .then(function (r) {
+            if (!r.ok) throw new Error('index ' + r.status);
+            return r.text();
+          })
+          .then(function (b64) {
+            var bin = atob(b64.trim());
+            var u8 = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u8.slice(0, 12) }, key, u8.slice(12));
+          })
+          .then(function (buf) {
+            var data = JSON.parse(new TextDecoder().decode(buf));
+            index = Array.isArray(data) ? data : data.pages;
+            return true;
+          })
+          .catch(function () {
+            indexPromise = null; // 允许下次输入重试
+            results.innerHTML = '<div class="search-empty">搜索索引加载失败，请刷新后重试</div>';
+            return false; // 失败标记：阻止后续 render 清空这条错误提示（审查 P1-1）
+          });
+      }
+      // 只有加载成功才回调 render；失败时 catch 已写入错误提示，render 首行会清空 innerHTML
+      indexPromise.then(function (ok) { if (ok) cb(); });
+    }
+
+    function snippet(text, q) {
+      if (!text) return '';
+      var i = text.toLowerCase().indexOf(q.toLowerCase());
+      if (i < 0) return text.slice(0, 40);
+      var start = Math.max(0, i - 12);
+      return (start > 0 ? '…' : '') + text.slice(start, i + q.length + 18) + '…';
+    }
+
+    function getHistory() {
+      try {
+        var h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        return Array.isArray(h) ? h : [];
+      } catch (e) { return []; }
+    }
+    function addHistory(w) {
+      w = (w || '').trim();
+      if (!w) return;
+      var h = getHistory().filter(function (x) { return x !== w; });
+      h.unshift(w);
+      if (h.length > 10) h = h.slice(0, 10);
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch (e) {}
+    }
+    function showHistory() {
+      var h = getHistory();
+      history.innerHTML = '';
+      if (!h.length) return;
+      var label = document.createElement('div');
+      label.className = 'search-history-label';
+      label.textContent = '搜索历史';
+      var clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'search-history-clear';
+      clear.textContent = '清空';
+      clear.addEventListener('click', function () {
+        try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+        history.innerHTML = '';
+      });
+      label.appendChild(clear);
+      history.appendChild(label);
+      h.forEach(function (w) {
+        var c = document.createElement('button');
+        c.type = 'button';
+        c.className = 'search-history-chip';
+        c.textContent = w;
+        c.addEventListener('click', function () {
+          input.value = w;
+          ensureIndex(function () { render(w); });
+          input.focus();
+        });
+        history.appendChild(c);
+      });
+    }
+
+    function partVariants(parts) {
+      return parts.map(function (p) {
+        var v = [p.toLowerCase()];
+        var syn = SYNONYMS[p.toLowerCase()];
+        if (syn) syn.forEach(function (s) { if (v.indexOf(s) < 0) v.push(s); });
+        return v;
+      });
+    }
+    function matchHay(hay, pv) {
+      for (var i = 0; i < pv.length; i++) {
+        var ok = false;
+        for (var j = 0; j < pv[i].length; j++) {
+          if (hay.indexOf(pv[i][j]) >= 0) { ok = true; break; }
+        }
+        if (!ok) return false;
+      }
+      return true;
+    }
+    function scoreOrigin(hay, parts) {
+      var s = 0;
+      for (var i = 0; i < parts.length; i++) {
+        if (hay.indexOf(parts[i].toLowerCase()) >= 0) s += 1;
+      }
+      return s;
+    }
+
+    function render(q) {
+      results.innerHTML = '';
+      q = (q || '').trim();
+      if (!q) { showHistory(); return; }
+      if (!index) return;
+      var parts = q.split(/\s+/);
+      var pv = partVariants(parts);
+      var items = [];
+      var seen = {};
+      for (var i = 0; i < index.length; i++) {
+        var p = index[i];
+        var tl = (p.title || '').toLowerCase();
+        var dl = (p.desc || '').toLowerCase();
+        var tx = (p.text || '').toLowerCase();
+        if (matchHay(tl, pv)) items.push({ url: p.url, pageTitle: p.title, score: 6 + scoreOrigin(tl, parts) });
+        else if (matchHay(dl, pv)) items.push({ url: p.url, pageTitle: p.title, score: 3 + scoreOrigin(dl, parts) });
+        else if (matchHay(tx, pv)) items.push({ url: p.url, pageTitle: p.title, score: 1 + scoreOrigin(tx, parts) });
+        var secs = p.sections || [];
+        for (var j = 0; j < secs.length; j++) {
+          var sec = secs[j];
+          var st = (sec.title || '').toLowerCase();
+          var haySec = (st + ' ' + (sec.text || '')).toLowerCase();
+          if (!matchHay(haySec, pv)) continue;
+          var score = matchHay(st, pv) ? 5 : 4;
+          score += scoreOrigin(haySec, parts);
+          if (matchHay(tl, pv)) score += 1;
+          items.push({
+            url: p.url + '#' + sec.id,
+            pageTitle: p.title,
+            secTitle: sec.title,
+            snippet: snippet(sec.text, q),
+            score: score
+          });
+        }
+      }
+      items.sort(function (a, b) { return b.score - a.score; });
+      var finalItems = [];
+      for (var k = 0; k < items.length; k++) {
+        if (!seen[items[k].url]) { seen[items[k].url] = true; finalItems.push(items[k]); }
+      }
+      if (!finalItems.length) {
+        results.innerHTML = '<div class="search-empty">没有找到「' + q.replace(/[<>&"]/g, '') + '」相关内容，换个词试试</div>';
+        return;
+      }
+      finalItems.slice(0, 8).forEach(function (h) {
+        var a = document.createElement('a');
+        a.href = SITE_ROOT + h.url;
+        a.className = 'search-item';
+        var ti = document.createElement('div');
+        ti.className = 'search-item-title';
+        ti.textContent = h.secTitle ? h.secTitle : h.pageTitle;
+        var sb = document.createElement('div');
+        sb.className = 'search-item-sections';
+        sb.textContent = h.secTitle
+          ? ('在「' + h.pageTitle + '」中' + (h.snippet ? ' · ' + h.snippet : ''))
+          : h.pageTitle;
+        a.appendChild(ti);
+        a.appendChild(sb);
+        a.addEventListener('click', function () {
+          try { sessionStorage.setItem('tinci-learn-hl', q); } catch (e) {}
+          addHistory(q);
+        });
+        results.appendChild(a);
+      });
+    }
+
+    // 跳转后命中词短暂高亮（支持多词；排除脚本/导航/已有手动高亮 mark）
+    function applyJumpHighlight() {
+      var kw = null;
+      try { kw = sessionStorage.getItem('tinci-learn-hl'); sessionStorage.removeItem('tinci-learn-hl'); } catch (e) {}
+      if (!kw) return;
+      var words = kw.trim().split(/\s+/).map(function (s) { return s.toLowerCase(); }).filter(Boolean);
+      if (!words.length) return;
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+      var pending = [];
+      var n;
+      while ((n = walker.nextNode())) {
+        if (!n.nodeValue || !n.nodeValue.trim()) continue;
+        var pp = n.parentNode;
+        if (pp && pp.closest && pp.closest('script,style,nav,header,footer,textarea,.search-panel,mark')) continue;
+        var lower = n.nodeValue.toLowerCase();
+        for (var i = 0; i < words.length; i++) {
+          if (lower.indexOf(words[i]) >= 0) { pending.push(n); break; }
+        }
+      }
+      pending.forEach(function (node) {
+        var text = node.nodeValue;
+        var lower = text.toLowerCase();
+        var idx = -1, len = 0;
+        for (var i = 0; i < words.length; i++) {
+          var at = lower.indexOf(words[i]);
+          if (at >= 0 && (idx < 0 || at < idx)) { idx = at; len = words[i].length; }
+        }
+        if (idx < 0) return;
+        var mark = document.createElement('mark');
+        mark.className = 'search-hl';
+        mark.textContent = text.substr(idx, len);
+        node.parentNode.insertBefore(document.createTextNode(text.substr(0, idx)), node);
+        node.parentNode.insertBefore(mark, node);
+        node.parentNode.insertBefore(document.createTextNode(text.substr(idx + len)), node);
+        node.parentNode.removeChild(node);
+      });
+      setTimeout(function () {
+        var marks = document.querySelectorAll('mark.search-hl');
+        for (var i = 0; i < marks.length; i++) marks[i].classList.add('fade');
+      }, 3000);
+      // 解密渲染后补滚到小节锚点
+      if (location.hash) {
+        var el = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        if (el) setTimeout(function () { el.scrollIntoView(); }, 0);
+      }
+    }
+    applyJumpHighlight();
+
+    function openSearch() {
+      panel.classList.add('open');
+      input.focus();
+      ensureIndex(function () { render(input.value); });
+    }
+    function closeSearch() {
+      panel.classList.remove('open');
+      input.value = '';
+      results.innerHTML = '';
+      history.innerHTML = '';
+    }
+
+    btn.addEventListener('click', function () {
+      if (panel.classList.contains('open')) { closeSearch(); return; }
+      openSearch();
+    });
+    input.addEventListener('input', function () {
+      ensureIndex(function () { render(input.value); });
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var first = results.querySelector('.search-item');
+        addHistory(input.value);
+        if (first) location.href = first.getAttribute('href');
+      }
+    });
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function (e) {
+      if (!panel.contains(e.target) && e.target !== btn && !(btn.contains && btn.contains(e.target))) closeSearch();
+    });
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openSearch(); }
+      if (e.key === 'Escape') closeSearch();
+    });
   }
 })();
